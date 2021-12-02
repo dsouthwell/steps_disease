@@ -195,6 +195,11 @@ List rcpp_dispersal(NumericMatrix starting_population_state,
   IntegerVector source_y_vec = shuffle_vec(0, (ny - 1));
   IntegerVector source_x_vec = shuffle_vec(0, (nx - 1));
   
+  int source_id, sink_id;
+  NumericMatrix track_dispersers(ny*nx, nx*ny);
+  IntegerVector id_vec = seq(1, ny*nx);
+  NumericMatrix id_table(ny, nx, id_vec.begin());
+  
   /*
    ** copy values from source to initialised matrices and set zeros
    ** in carrying capacity available matrix where barriers are present
@@ -211,6 +216,15 @@ List rcpp_dispersal(NumericMatrix starting_population_state,
     }
   }
   
+  for(y = 0; y < ny*nx; y++){
+    for(x = 0; x < nx*ny; x++){
+      
+      track_dispersers(y, x) = 0;
+      
+    }
+  }
+
+
   /* *********************** */
   /* Dispersal starts here.  */
   /* *********************** */
@@ -271,6 +285,12 @@ List rcpp_dispersal(NumericMatrix starting_population_state,
             
             future_population_state(sink_y, sink_x) = future_population_state(sink_y, sink_x) + 1;
             
+            source_id = id_table(source_y, source_x);
+            sink_id = id_table(sink_y, sink_x);
+            
+            track_dispersers(source_id, sink_id) =  track_dispersers(source_id, sink_id) + 1;
+              
+            
           } else {
             
             failed_dispersers(source_y, source_x) = failed_dispersers(source_y, source_x) + 1;
@@ -291,5 +311,8 @@ List rcpp_dispersal(NumericMatrix starting_population_state,
   
   return(List::create(Named("future_population") = future_population_state,
                       Named("dispersed") = dispersers,
-                      Named("failed") = failed_dispersers));
+                      Named("failed") = failed_dispersers,
+                      Named("tracked") = track_dispersers));
+                      
+  
 }

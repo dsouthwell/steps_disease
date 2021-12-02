@@ -78,21 +78,21 @@ simulation <- function(landscape,
   landscape_names <- names(landscape)
   
   # loop through names of objects and check for layer counts
-  for (name in landscape_names) {
-    
-    if (name != "population" && !is.function(landscape[[name]]) &&
-        !is.null(landscape[[name]]) && raster::nlayers(landscape[[name]]) > 1) {
-      
-      if (raster::nlayers(landscape[[name]]) < timesteps) {
-        stop("A spatial object exists in the landscape that has less layers than specified ",
-             "number timesteps. All spatial objects must have either one layer or a number of ",
-             "layers equal to the intended number of timesteps in a simulation. Please check the ",
-             "landscape object and re-run the simulation.")
-      }
-      
-    }
-    
-  }
+   #for (name in landscape_names) {
+  #   
+     #if (name != "population" && !is.function(landscape[[name]]) &&
+     #    !is.null(landscape[[name]]) && raster::nlayers(landscape[[name]]) > 1) {
+  #     
+      # if (raster::nlayers(landscape[[name]]) < timesteps) {
+       #  stop("A spatial object exists in the landscape that has less layers than specified ",
+         #     "number timesteps. All spatial objects must have either one layer or a number of ",
+         #     "layers equal to the intended number of timesteps in a simulation. Please check the ",
+          #    "landscape object and re-run the simulation.")
+      # }
+       
+    # }
+     
+  # }
   
   # store intitial population, habitat, and carrying capacity objects
   initial_population <- landscape$population

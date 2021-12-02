@@ -127,13 +127,55 @@ growth <- function (transition_matrix,
   }
   
   pop_dynamics <- function (landscape, timestep) {
+   
     
     # import components from landscape object
     population_raster <- landscape$population
+    alleleA_raster <- landscape$allele_a    
+    alleleN1_raster <- landscape$allele_n
+    alleleN2_raster <- landscape$allele_n2 
+    alleleN3_raster <- landscape$allele_n3 
+    alleleN4_raster <- landscape$allele_n4 
+    alleleN5_raster <- landscape$allele_n5
+    alleleN6_raster <- landscape$allele_n6 
+    alleleN7_raster <- landscape$allele_n7 
+    alleleN8_raster <- landscape$allele_n8 
+    alleleN9_raster <- landscape$allele_n9 
+    alleleN10_raster <- landscape$allele_n10 
+    disease_raster <- landscape$DFTD1
+    HO_raster <- landscape$Heterozygosity
+    
     
     # get population as a matrix
     cell_idx <- which(!is.na(raster::getValues(population_raster[[1]])))
     population <- raster::extract(population_raster, cell_idx)
+    alleleA <- raster::extract(alleleA_raster, cell_idx)    
+    alleleN1 <- raster::extract(alleleN1_raster, cell_idx)
+    alleleN2 <- raster::extract(alleleN2_raster, cell_idx)
+    alleleN3 <- raster::extract(alleleN3_raster, cell_idx)
+    alleleN4 <- raster::extract(alleleN4_raster, cell_idx)
+    alleleN5 <- raster::extract(alleleN5_raster, cell_idx)
+    alleleN6 <- raster::extract(alleleN6_raster, cell_idx)
+    alleleN7 <- raster::extract(alleleN7_raster, cell_idx)
+    alleleN8 <- raster::extract(alleleN8_raster, cell_idx)
+    alleleN9 <- raster::extract(alleleN9_raster, cell_idx)
+    alleleN10 <- raster::extract(alleleN10_raster, cell_idx)
+    disease <- raster::extract(disease_raster, cell_idx)
+    Hcombine <- Hnew <- raster::extract(HO_raster, cell_idx)
+    
+    #In genetic layers, turn all cells that are NA to 0
+    alleleA[is.na(alleleA)] <- 0  ########################################
+    alleleN1[is.na(alleleN1)] <- 0  ########################################
+    alleleN2[is.na(alleleN2)] <- 0  ########################################
+    alleleN3[is.na(alleleN3)] <- 0  ########################################
+    alleleN4[is.na(alleleN4)] <- 0  ########################################
+    alleleN5[is.na(alleleN5)] <- 0  ########################################
+    alleleN6[is.na(alleleN6)] <- 0  ########################################
+    alleleN7[is.na(alleleN7)] <- 0  ########################################
+    alleleN8[is.na(alleleN8)] <- 0  ########################################
+    alleleN9[is.na(alleleN9)] <- 0  ########################################
+    alleleN10[is.na(alleleN10)] <- 0  ######################################
+    Hcombine[is.na(Hcombine)] <- 0 #########################################
     
     n_cells <- length(cell_idx)
     
@@ -164,37 +206,98 @@ growth <- function (transition_matrix,
     values <- pmax_zero(values)
     values <- pmin(values, rep(upper, n_cells))
     transition_array[idx_full] <- values
-    
+   
     if (steps_stash$demo_stochasticity == "full") {
       
-      total_pop <- rowSums(population)
-      has_pop <- total_pop > 0
+      ############################################################
+      #Deal with adaptive allele
       
-      # if two-sex model, assumes that matrix is setup in a way that the fecundity values are
-      # in the first, and half the row count + 1, rows - added 23.10.20
-      fec_rows <- 1
-      if (two_sex) fec_rows <- c(1, (nrow(transition_matrix) / 2) + 1)
+      split.genotype <- function(Population, allele){
+        pp_pop <- pq_pop <- qq_pop <- Population
+        pp <- (1 - allele)^2  
+        pq <- 2*(1 - allele)*allele  
+        qq <- allele^2  
+        pp_pop <- ceiling(Population*pp) #round(Population*pp, digits=0)
+        pq_pop <- ceiling(Population*pq) #round(Population*pq, digits=0)
+        qq_pop <- ceiling(Population*qq) #round(Population*qq, digits=0)
+        genotypes <- list(pp_pop, pq_pop, qq_pop)
+        genotypes
+      }
       
-      if (transition_order == "fecundity" && sum(has_pop) >= 1) {
-        # first step - perform fecundity to add individuals to the populations
-        new_population <- add_offspring(population[has_pop, ], transition_array[ , , has_pop], fec_rows) # updated 23.10.20
-        # second step - perform survival on new population
-        surv_population <- surviving_population(population[has_pop, ], transition_array[ , , has_pop], fec_rows) # updated 23.10.20
-        # add new and surviving populations
-        surv_population[ , fec_rows] <- surv_population[ , fec_rows] + new_population
-        population[has_pop, ] <- surv_population
+      ##########################################################
+      #Loop through genotypes for each allele
+      ##########################################################
+      
+      len <- 11
+      H_new <- Q_new  <- vector(mode = "list", length = len)
+      alleles <- list(alleleN1, alleleN2, alleleN3, alleleN4, alleleN5, alleleN6, alleleN7, alleleN8, alleleN9, alleleN10, alleleA)
+      
+      for (kk in 1:len) {
+      
+        outsurv <- genotypes <- split.genotype(Population=population, allele=alleles[[kk]])
         
-      }
+        if (kk == len) {
+          
+          rws <- dim(transition_array)[1]
+          resistance <- which(rowSums(genotypes[[3]])>0 & disease==1)
+          if (length(resistance) > 0){
+            transition_array[2:rws,,resistance] <- transition_array[2:rws,,resistance] * 1.0
+          }
+        }
+        
+      for (ss in 1:length(genotypes)) { #I've replaced every population with population2 everytime in this loop#
       
-      if (transition_order == "survival" && sum(has_pop) >= 1) {
-        # first step - perform survival on population
-        surv_population <- surviving_population(population[has_pop, ], transition_array[ , , has_pop], fec_rows) # updated 23.10.20
-        # second step - perform fecundity to add individuals to the populations
-        new_population <- add_offspring(surv_population, transition_array[ , , has_pop], fec_rows) # updated 23.10.20
-        # add new and surviving populations
-        surv_population[ , fec_rows] <- surv_population[ , fec_rows] + new_population
-        population[has_pop, ] <- surv_population
-      }
+        population2 <- genotypes[[ss]]
+      
+        total_pop <- rowSums(population2)
+        if (sum(total_pop) == 0) {next}
+        has_pop <- total_pop > 0 
+      
+        # if two-sex model, assumes that matrix is setup in a way that the fecundity values are
+        # in the first, and half the row count + 1, rows - added 23.10.20
+        fec_rows <- 1
+        if (two_sex) fec_rows <- c(1, (nrow(transition_matrix) / 2) + 1)
+      
+        if (transition_order == "fecundity" && sum(has_pop) >= 1) {
+          # first step - perform fecundity to add individuals to the populations
+          new_population <- add_offspring(population2[has_pop, ], transition_array[ , , has_pop], fec_rows) # updated 23.10.20
+          # second step - perform survival on new population
+          surv_population <- surviving_population(population2[has_pop, ], transition_array[ , , has_pop], fec_rows) # updated 23.10.20
+          # add new and surviving populations
+          surv_population[ , fec_rows] <- surv_population[ , fec_rows] + new_population
+          population2[has_pop, ] <- surv_population
+        
+        }
+      
+        if (transition_order == "survival" && sum(has_pop) >= 1) {
+          # first step - perform survival on population
+          surv_population <- surviving_population(population2[has_pop, ], transition_array[ , , has_pop], fec_rows) # updated 23.10.20
+          # second step - perform fecundity to add individuals to the populations
+          new_population <- add_offspring(surv_population, transition_array[ , , has_pop], fec_rows) # updated 23.10.20
+          # add new and surviving populations
+          surv_population[ , fec_rows] <- surv_population[ , fec_rows] + new_population
+          population2[has_pop, ] <- surv_population
+        }
+      
+        outsurv[[ss]] <- population2 ####################################
+      
+      } #End of loop through different genotypes for allele i #############################
+      
+      #Calculate new p and q based on survival and fecundity
+      finalpop <- outsurv[[1]] + outsurv[[2]] + outsurv[[3]]
+      #Adaptive allele
+      pnew <- (2 * rowSums(outsurv[[1]]) + rowSums(outsurv[[2]]))/(2*rowSums(finalpop))
+      qnew <- 1 - pnew    # Frequency of C allele
+      pnew[is.nan(pnew)] <- 0
+      qnew[is.nan(qnew)] <- 0
+      Hnew <- 1 - (pnew)^2
+      
+      Q_new[[kk]] <- qnew
+      H_new[[kk]] <- Hnew
+      
+      } #End allele loop
+      
+      Hcombine <- 1/len*(H_new[[1]] + H_new[[2]] + H_new[[3]] + H_new[[4]] + H_new[[5]] + H_new[[6]] + H_new[[7]] + H_new[[8]] + H_new[[9]] + H_new[[10]])
       
       
     } else {
@@ -207,15 +310,60 @@ growth <- function (transition_matrix,
     }
     
     # put back in the raster
-    population_raster[cell_idx] <- population
+    #population <- sum(outsurv) ################################
+  
+    population_raster[cell_idx] <- finalpop
+    alleleN1_raster[cell_idx] <- Q_new[[1]]
+    alleleN2_raster[cell_idx] <- Q_new[[2]]
+    alleleN3_raster[cell_idx] <- Q_new[[3]]
+    alleleN4_raster[cell_idx] <- Q_new[[4]]
+    alleleN5_raster[cell_idx] <- Q_new[[5]]
+    alleleN6_raster[cell_idx] <- Q_new[[6]]
+    alleleN7_raster[cell_idx] <- Q_new[[7]]
+    alleleN8_raster[cell_idx] <- Q_new[[8]]
+    alleleN9_raster[cell_idx] <- Q_new[[9]]
+    alleleN10_raster[cell_idx] <- Q_new[[10]]
+    alleleA_raster[cell_idx] <- Q_new[[len]]
+    HO_raster[cell_idx] <- Hcombine
     
+    #In allele layers, turn all locally extinct cells from 0 to NA
+    #extinct <- which(sum(population_raster)==0) #################################
+    alleleA_raster[sum(population_raster)==0] <- NA ########################################
+    alleleN1_raster[sum(population_raster)==0] <- NA ###################################
+    alleleN2_raster[sum(population_raster)==0] <- NA ######################################
+    alleleN3_raster[sum(population_raster)==0] <- NA ######################################
+    alleleN4_raster[sum(population_raster)==0] <- NA ######################################
+    alleleN5_raster[sum(population_raster)==0] <- NA ######################################
+    alleleN6_raster[sum(population_raster)==0] <- NA ######################################
+    alleleN7_raster[sum(population_raster)==0] <- NA ######################################
+    alleleN8_raster[sum(population_raster)==0] <- NA ######################################
+    alleleN9_raster[sum(population_raster)==0] <- NA ######################################
+    alleleN10_raster[sum(population_raster)==0] <- NA ######################################
+    HO_raster[sum(population_raster)==0] <- NA ######################################
+    
+    #population_raster[cell_idx] <- population
+    #print(class(population(raster)))
     landscape$population <- population_raster
+    landscape$allele_a <- alleleA_raster
+    landscape$allele_n <- alleleN1_raster
+    landscape$allele_n2 <- alleleN2_raster
+    landscape$allele_n3 <- alleleN3_raster
+    landscape$allele_n4 <- alleleN4_raster
+    landscape$allele_n5 <- alleleN5_raster
+    landscape$allele_n6 <- alleleN6_raster
+    landscape$allele_n7 <- alleleN7_raster
+    landscape$allele_n8 <- alleleN8_raster
+    landscape$allele_n9 <- alleleN9_raster
+    landscape$allele_n10 <- alleleN10_raster
+    landscape$Heterozygosity <- HO_raster
     
     landscape
+    
+    
   }
   
   result <- as.population_growth(pop_dynamics)
-  
+  #landscape
   result
 }
 

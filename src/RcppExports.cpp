@@ -5,6 +5,11 @@
 
 using namespace Rcpp;
 
+#ifdef RCPP_USE_GLOBAL_ROSTREAM
+Rcpp::Rostream<true>&  Rcpp::Rcout = Rcpp::Rcpp_cout_get();
+Rcpp::Rostream<false>& Rcpp::Rcerr = Rcpp::Rcpp_cerr_get();
+#endif
+
 // shuffle_vec
 IntegerVector shuffle_vec(int min, int max);
 RcppExport SEXP _steps_shuffle_vec(SEXP minSEXP, SEXP maxSEXP) {

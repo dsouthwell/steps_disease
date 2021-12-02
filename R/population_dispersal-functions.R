@@ -392,9 +392,15 @@ cellular_automata_dispersal <- function (max_cells = Inf,
   carrying_cap <- identical(carrying_capacity, "carrying_capacity")
   
   pop_dynamics <- function (landscape, timestep) {
-    
+    print(timestep)
     # read population raster stack from landscape
+    
+    #landscape = egk_landscape
+    
     population_raster <- landscape$population
+    
+    past_population <- sum(landscape$population) ################################
+    
     
     # get non-NA cells
     idx <- which(!is.na(raster::getValues(population_raster[[1]])))
@@ -486,6 +492,8 @@ cellular_automata_dispersal <- function (max_cells = Inf,
     steps_stash$dispersal_stats_failure <- replicate(n_stages, NULL, simplify = FALSE)
     
     # could do this in parallel
+    
+    
     for (i in which_stages_disperse){
       dispersed <- rcpp_dispersal(raster::as.matrix(population_raster[[i]]),
                                   raster::as.matrix(cc),
@@ -497,15 +505,288 @@ cellular_automata_dispersal <- function (max_cells = Inf,
       
       steps_stash$dispersal_stats_success[[i]] <- dispersed$dispersed
       steps_stash$dispersal_stats_failure[[i]] <- dispersed$failed
+     
+      if (which(i %in% which_stages_disperse) == 1) {dispersal_tracked <- dispersed$tracked} #######################
+      
+      dispersal_tracked <- dispersal_tracked + dispersed$tracked #######################
     }
     
-    landscape$population <- population_raster
+    ########################################################
+    #DISEASE SPREAD
+    ########################################################
     
-    #cat("Pre-Post Population:", poptot, sum(raster::cellStats(landscape$population, sum)), "(Timestep", timestep, ")", "\n")
+    disease_raster <- landscape$DFTD1
+    disease_raster2 <- landscape$DFTD2
+    arrival_raster <- landscape$arrival
+    density_raster <- sum(landscape$population)/25
+    density_raster_scaled <- density_raster
+    density_raster_scaled[!is.na(density_raster_scaled)] <- density_raster_scaled[!is.na(density_raster_scaled)]/max(values(density_raster_scaled),na.rm=TRUE) 
     
-    landscape
-  }
+    #Which cells in the DFTD1 raster are occupied
+    disease_matrix <- raster::as.matrix(disease_raster)
+    source <- which(disease_matrix==1)
+    #Which cells has DFTD1 arrived to
+    arrival_matrix <- raster::as.matrix(arrival_raster)
+    
+    #Which cells in the DFTD2 raster are occupied
+    disease_matrix2 <- raster::as.matrix(disease_raster2)
+    source2 <- which(disease_matrix2==1)
+    
+    #Model spread of DFTD1 and DFTD2 in 2 ways - first model spread to neighbouring cells through contact
+    wdist <- matrix(c(0.00,0.00,1.00,1.00,1.00,0.00,0.00,
+                      0.00,1.00,1.00,1.00,1.00,1.00,0.00,
+                      1.00,1.00,1.00,1.00,1.00,1.00,1.00,
+                      1.00,1.00,1.00,1.00,1.00,1.00,1.00,
+                      1.00,1.00,1.00,1.00,1.00,1.00,1.00,
+                      0.00,1.00,1.00,1.00,1.00,1.00,0.00,
+                      0.00,0.00,1.00,1.00,1.00,0.00,0.00),
+                    nrow=7,ncol=7)
+    
+    #Now model neighbourhood spread in DTFD1
+    if (timestep < 5) {out <- disease_raster}
+    
+    if (timestep >= 5) {
+      # Get a vector of cell values for working with
+      working <- disease_raster
+      working[is.na(working)] <- -1
+      x <- raster::as.matrix(working)
+      m <- ncol(working); n <- nrow(working)	# Already defined
+      
+      # Create probability of a cell being infected 
+      logPr <- -3.11 + 7.75*density_raster_scaled
+      PInf <- exp(logPr)/(1+exp(logPr))
+      PInfm <- raster::as.matrix(PInf)
+      
+      occ <- ifelse(x==1,1,0)
+      dim(occ) <- c(n,m)
+      nb <- neighbours(occ, wdist=wdist)
+      xgen <- ifelse(x==0 & nb >= runif(n*m),1, 0)
+      xgen <- ifelse(x==0 & nb >= runif(n*m) & PInfm >= runif(n*m), 1, 0)
+      x <- xgen + occ
+      out <- working
+      out[] <- x
+      out[is.na(disease_raster)] <- NA
+    }
+    
+    #Now model neighbourhood spread in DTFD2
+    if (timestep < 30) {out2 <- disease_raster2}
+    
+    if (timestep >= 30) {
+      # Get a vector of cell values for working with
+      working2 <- disease_raster2
+      working2[is.na(working2)] <- -1
+      x2 <- raster::as.matrix(working2)
+      m2 <- ncol(working2); n2 <- nrow(working2)	# Already defined
+      
+      # Create probability of a cell being infected 
+      logPr2 <- -3.11 + 7.75*density_raster_scaled
+      PInf2 <- exp(logPr2)/(1+exp(logPr2))
+      PInfm2 <- raster::as.matrix(PInf2)
+      
+      occ2 <- ifelse(x2==1,1,0)
+      dim(occ2) <- c(n2,m2)
+      nb2 <- neighbours(occ2, wdist=wdist)
+      xgen2 <- ifelse(x2==0 & nb2 >= runif(n2*m2),1, 0)
+      xgen2 <- ifelse(x2==0 & nb2 >= runif(n2*m2) & PInfm2 >= runif(n2*m2), 1, 0)
+      x2 <- xgen2 + occ2
+      out3 <- working2
+      out3[] <- x2
+      out3[is.na(disease_raster2)] <- NA
+    }
+    
+    #Now model spread through individual dispersal
+    cells_to <- c()
+    for (v in source){
+      out2 <- which(dispersal_tracked[v,]>=1) 
+      cells_to <- c(cells_to, out2)
+    }
+    
+    if (timestep >= 5) {disease_matrix[cells_to] <- 1} ########SWITCH BETWEEN 0 AND 1
+    #disease_matrix[which(arrival_matrix< timestep)] <- 0 ########SWITCH BETWEEN 0 AND 1
+    raster::values(disease_raster) <- disease_matrix
+    
+    total_pop <- sum(population_raster)
+    disease_raster[total_pop==0] <- 0
+    disease_raster2[total_pop==0] <- 0
+    out[total_pop==0] <- 0
+    combined <- disease_raster + out
+    combined[combined > 1] <- 1
+    combined[arrival_raster==100] <- 0
+    
+    #if (timestep >35) {combined[!is.na(combined)] <- 0}
+    #if (timestep >35) {out3[!is.na(out3)] <- 0}
+    
+    landscape$DFTD1 <- combined
+    if (timestep < 30) {landscape$DFTD2 <- disease_raster2} else {landscape$DFTD2 <- out3}
+    
+    
+    #######################################################
+    #Update allele frequencies at each time step
+    #######################################################
+    
+    #past_population <- sum(landscape$population)
+    #allele_raster <- landscape$allele
+    allele_raster <- stack(landscape$allele_a, landscape$allele_n, landscape$allele_n2, landscape$allele_n3, landscape$allele_n4,
+                           landscape$allele_n5, landscape$allele_n6, landscape$allele_n7, landscape$allele_n8, landscape$allele_n9, landscape$allele_n10) 
+    allele_raster[is.na(allele_raster)] <- 0
+    allele_raster[is.na(landscape$DFTD1)] <- NA
+    #allele_raster <- stack(allele_ad, allele_n)
+    #allele_raster <- allele_fr
+    #allele_matrix <- raster::as.matrix(allele_raster)
+    
+    allele_matrix <- array(0, dim=c(nrow(allele_raster), ncol(allele_raster), raster::nlayers(allele_raster)))
+    for (v in 1:(raster::nlayers(allele_raster))){
+      allele_matrix[,,v] <- raster::as.matrix(allele_raster[[v]])
+    }
+    allele_matrix_copy <- allele_matrix  
+    
+    #allele_matrix_copy <- raster::as.matrix(allele_raster)
+    past_pop_matrix <- raster::as.matrix(past_population)
   
+    #Loop through each cell - record number of dispersers and allele frequencies
+    for (v in 1:ncol(dispersal_tracked)) {
+      if (sum(dispersal_tracked[,v])==0) {next} 
+      if (sum(dispersal_tracked[,v])>0) {
+        
+          #List sink cell plus sources
+          cells_to_from <- c(v,which(dispersal_tracked[,v]>0))
+          #Extract allele frequencies from sink and source cells
+          #past_alleles <- allele_matrix[cells_to_from]
+          
+          past_alleles <- matrix(NA, nrow=nlayers(allele_raster), ncol=length(cells_to_from))
+          for (w in 1:nlayers(allele_raster)){
+            past_alleles[w,] <- allele_matrix[,,w][cells_to_from]
+          }
+          
+          #Calculate frequency of qq
+          #qq_freq <- sqrt(past_alleles)
+          #Extract population size from sink and source cells
+          past_pop <- past_pop_matrix[cells_to_from]
+          past_pop_weights <- past_pop/sum(past_pop)
+          for (x in 1:nlayers(allele_raster)){
+            vals <- allele_matrix_copy[,,x]
+            vals[v] <- weighted.mean(past_alleles[x,], past_pop_weights, na.rm=TRUE)
+            if (timestep > 0) {allele_matrix_copy[,,x] <- vals}
+          }
+      }
+    }
+    
+    
+    #for (v in 1:nlayers(allele_raster)){
+      #raster::values(allele_raster[[v]]) <- allele_matrix_copy[,,v]
+    #}
+      #raster::values(allele_raster) <- allele_matrix_copy
+      raster::values(allele_raster[[1]]) <- allele_matrix_copy[,,1]
+      raster::values(allele_raster[[2]]) <- allele_matrix_copy[,,2]
+      raster::values(allele_raster[[3]]) <- allele_matrix_copy[,,3]
+      raster::values(allele_raster[[4]]) <- allele_matrix_copy[,,4]
+      raster::values(allele_raster[[5]]) <- allele_matrix_copy[,,5]
+      raster::values(allele_raster[[6]]) <- allele_matrix_copy[,,6]
+      raster::values(allele_raster[[7]]) <- allele_matrix_copy[,,7]
+      raster::values(allele_raster[[8]]) <- allele_matrix_copy[,,8]
+      raster::values(allele_raster[[9]]) <- allele_matrix_copy[,,9]
+      raster::values(allele_raster[[10]]) <- allele_matrix_copy[,,10]
+      raster::values(allele_raster[[11]]) <- allele_matrix_copy[,,11]
+      
+      allele_raster[is.na(allele_raster)] <- 0
+      allele_raster[is.na(disease_raster)] <- NA
+
+      allele_raster[[1]][sum(population_raster)==0] <- NA
+      allele_raster[[2]][sum(population_raster)==0] <- NA
+      allele_raster[[3]][sum(population_raster)==0] <- NA
+      allele_raster[[4]][sum(population_raster)==0] <- NA
+      allele_raster[[5]][sum(population_raster)==0] <- NA
+      allele_raster[[6]][sum(population_raster)==0] <- NA
+      allele_raster[[7]][sum(population_raster)==0] <- NA
+      allele_raster[[8]][sum(population_raster)==0] <- NA
+      allele_raster[[9]][sum(population_raster)==0] <- NA
+      allele_raster[[10]][sum(population_raster)==0] <- NA
+      allele_raster[[11]][sum(population_raster)==0] <- NA
+      
+      landscape$allele_a <- allele_raster[[1]] #allele_raster
+      landscape$allele_n <- allele_raster[[2]]
+      landscape$allele_n2 <- allele_raster[[3]]
+      landscape$allele_n3 <- allele_raster[[4]]
+      landscape$allele_n4 <- allele_raster[[5]]
+      landscape$allele_n5 <- allele_raster[[6]]
+      landscape$allele_n6 <- allele_raster[[7]]
+      landscape$allele_n7 <- allele_raster[[8]]
+      landscape$allele_n8 <- allele_raster[[9]]
+      landscape$allele_n9 <- allele_raster[[10]]
+      landscape$allele_n10 <- allele_raster[[11]]
+      
+      
+      #######################################################
+      #COPY OF OLD CODE
+      #######################################################
+      
+     
+      #allele_raster <- stack(landscape$allele_a, landscape$allele_n) 
+      #allele_raster[is.na(allele_raster)] <- 0
+      #allele_raster[is.na(landscape$disease)] <- NA
+      
+      
+      #allele_matrix <- array(0, dim=c(nrow(allele_raster), ncol(allele_raster), nlayers(allele_raster)))
+      #for (v in 1:nlayers(allele_raster)){
+      #  allele_matrix[,,v] <- raster::as.matrix(allele_raster[[v]])
+      #}
+      #allele_matrix_copy <- allele_matrix  
+      
+      #past_pop_matrix <- raster::as.matrix(past_population)
+      
+      #Loop through each cell - record number of dispersers and allele frequencies
+      #for (v in 1:ncol(dispersal_tracked)) {
+        #if (sum(dispersal_tracked[,v])==0) {next} 
+        #if (sum(dispersal_tracked[,v])>0) {
+          
+          #List sink cell plus sources
+          #cells_to_from <- c(v,which(dispersal_tracked[,v]>0))
+          #Extract allele frequencies from sink and source cells
+          #past_alleles <- allele_matrix[cells_to_from]
+          
+          #past_alleles <- matrix(NA, nrow=nlayers(allele_raster), ncol=length(cells_to_from))
+          #for (w in 1:nlayers(allele_raster)){
+          #  past_alleles[w,] <- allele_matrix[,,w][cells_to_from]
+          #}
+          
+          #Calculate frequency of qq
+          #past_pop <- past_pop_matrix[cells_to_from]
+          #past_pop_weights <- past_pop/sum(past_pop)
+          #for (x in 1:nlayers(allele_raster)){
+           # vals <- allele_matrix_copy[,,x]
+           # vals[v] <- weighted.mean(past_alleles[x,], past_pop_weights, na.rm=TRUE)
+            #if (timestep > 0) {allele_matrix_copy[,,x] <- vals}
+          #}
+        #}
+      #}
+      
+      
+      #for (v in 1:nlayers(allele_raster)){
+      #raster::values(allele_raster[[v]]) <- allele_matrix_copy[,,v]
+      #}
+      #raster::values(allele_raster) <- allele_matrix_copy
+      #raster::values(allele_raster[[1]]) <- allele_matrix_copy[,,1]
+      #raster::values(allele_raster[[2]]) <- allele_matrix_copy[,,2]
+      #allele_raster[is.na(allele_raster)] <- 0
+      #allele_raster[is.na(disease)] <- NA
+      
+      #allele_raster[[1]][sum(population_raster)==0] <- NA
+      #allele_raster[[2]][sum(population_raster)==0] <- NA
+      
+      #landscape$allele_a <- allele_raster[[1]] #allele_raster
+      #landscape$allele_n <- allele_raster[[2]]
+      
+      ######################################################
+      
+    
+    landscape$population <- population_raster
+      
+    #cat("Pre-Post Population:", poptot, sum(raster::cellStats(landscape$population, sum)), "(Timestep", timestep, ")", "\n")
+    #dispersal_tracked ################################
+    landscape
+
+  }
+
   as.population_dispersal(pop_dynamics)
   
 }
