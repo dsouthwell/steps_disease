@@ -339,7 +339,7 @@ growth <- function (transition_matrix,
     alleleN9_raster[sum(population_raster)==0] <- NA ######################################
     alleleN10_raster[sum(population_raster)==0] <- NA ######################################
     HO_raster[sum(population_raster)==0] <- NA ######################################
-    HO_raster[sink.xy] <- 0.5
+    #HO_raster[sink.xy] <- 0.5
     
     #population_raster[cell_idx] <- population
     #print(class(population(raster)))
