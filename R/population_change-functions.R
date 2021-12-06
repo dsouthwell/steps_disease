@@ -240,7 +240,7 @@ growth <- function (transition_matrix,
           rws <- dim(transition_array)[1]
           resistance <- which(rowSums(genotypes[[3]])>0 & disease==1)
           if (length(resistance) > 0){
-            transition_array[2:rws,,resistance] <- transition_array[2:rws,,resistance] * 1.25
+            transition_array[2:rws,,resistance] <- transition_array[2:rws,,resistance] * 1.00
           }
         }
         

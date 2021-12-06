@@ -592,7 +592,7 @@ cellular_automata_dispersal <- function (max_cells = Inf,
       
       occ2 <- ifelse(x2==1,1,0)
       dim(occ2) <- c(n2,m2)
-      nb2 <- neighbours(occ2, wdist=wdist2)
+      nb2 <- neighbours(occ2, wdist=wdist)
       xgen2 <- ifelse(x2==0 & nb2 >= runif(n2*m2),1, 0)
       xgen2 <- ifelse(x2==0 & nb2 >= runif(n2*m2) & PInfm2 >= runif(n2*m2), 1, 0)
       x2 <- xgen2 + occ2
