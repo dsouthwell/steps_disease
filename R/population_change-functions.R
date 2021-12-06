@@ -127,7 +127,6 @@ growth <- function (transition_matrix,
   }
   
   pop_dynamics <- function (landscape, timestep) {
-   
     
     # import components from landscape object
     population_raster <- landscape$population
@@ -147,7 +146,7 @@ growth <- function (transition_matrix,
     
     
     # get population as a matrix
-    cell_idx <- which(!is.na(raster::getValues(population_raster[[1]])))
+    cell_idx <- which(!is.na(raster::values(population_raster[[1]])))
     population <- raster::extract(population_raster, cell_idx)
     alleleA <- raster::extract(alleleA_raster, cell_idx)    
     alleleN1 <- raster::extract(alleleN1_raster, cell_idx)
@@ -236,12 +235,12 @@ growth <- function (transition_matrix,
       
         outsurv <- genotypes <- split.genotype(Population=population, allele=alleles[[kk]])
         
-        if (kk == len) {
+        if (kk == len & timestep>15) {
           
           rws <- dim(transition_array)[1]
           resistance <- which(rowSums(genotypes[[3]])>0 & disease==1)
           if (length(resistance) > 0){
-            transition_array[2:rws,,resistance] <- transition_array[2:rws,,resistance] * 1.0
+            transition_array[2:rws,,resistance] <- transition_array[2:rws,,resistance] * 1.25
           }
         }
         
@@ -340,6 +339,7 @@ growth <- function (transition_matrix,
     alleleN9_raster[sum(population_raster)==0] <- NA ######################################
     alleleN10_raster[sum(population_raster)==0] <- NA ######################################
     HO_raster[sum(population_raster)==0] <- NA ######################################
+    HO_raster[sink.xy] <- 0.5
     
     #population_raster[cell_idx] <- population
     #print(class(population(raster)))

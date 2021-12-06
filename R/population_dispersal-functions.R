@@ -188,7 +188,7 @@ kernel_dispersal <- function (dispersal_kernel = exponential_dispersal_kernel(di
     n_stages <- raster::nlayers(landscape$population)
     
     # create masking layer
-    mask <- raster::getValues(landscape$population[[1]])
+    mask <- raster::values(landscape$population[[1]])
     mask[!is.na(mask)] <- 1
     
     # check the required landscape rasters/functions are available
@@ -220,12 +220,12 @@ kernel_dispersal <- function (dispersal_kernel = exponential_dispersal_kernel(di
     which_stages_disperse <- which(dispersal_proportion > 0)
     
     # get non-NA cells
-    cell_idx <- which(!is.na(raster::getValues(landscape$population[[1]])))
+    cell_idx <- which(!is.na(raster::values(landscape$population[[1]])))
     
     delayedAssign(
       "habitat_suitability_values",
-      if (raster::nlayers(landscape$suitability) > 1) raster::getValues(landscape$suitability[[timestep]])
-      else raster::getValues(landscape$suitability)
+      if (raster::nlayers(landscape$suitability) > 1) raster::values(landscape$suitability[[timestep]])
+      else raster::values(landscape$suitability)
     )
     
     if ("carrying_capacity" %in% layers) {
@@ -240,7 +240,7 @@ kernel_dispersal <- function (dispersal_kernel = exponential_dispersal_kernel(di
       
       delayedAssign(
         "carrying_capacity_proportion",
-        raster::getValues(
+        raster::values(
           raster::calc(
             raster::stack(landscape$population)[[
               density_dependence_stages
@@ -250,7 +250,7 @@ kernel_dispersal <- function (dispersal_kernel = exponential_dispersal_kernel(di
         )
       )
       
-      cc_values <- raster::getValues(cc)
+      cc_values <- raster::values(cc)
       
     } else {
       
@@ -271,7 +271,7 @@ kernel_dispersal <- function (dispersal_kernel = exponential_dispersal_kernel(di
     can_arriv_ids <- which(arrival_prob_values > 0 & !is.na(arrival_prob_values))
     
     # Extract the population values
-    pop <- raster::getValues(landscape$population)
+    pop <- raster::values(landscape$population)
     
     # store the original population, so that individuals don't disperse twice
     original_pop <- pop
@@ -403,7 +403,7 @@ cellular_automata_dispersal <- function (max_cells = Inf,
     
     
     # get non-NA cells
-    idx <- which(!is.na(raster::getValues(population_raster[[1]])))
+    idx <- which(!is.na(raster::values(population_raster[[1]])))
     
     # is suitability specified without raster existing in landscape?
     if (use_suitability & is.null(landscape$suitability)) {
@@ -542,10 +542,17 @@ cellular_automata_dispersal <- function (max_cells = Inf,
                       0.00,0.00,1.00,1.00,1.00,0.00,0.00),
                     nrow=7,ncol=7)
     
-    #Now model neighbourhood spread in DTFD1
-    if (timestep < 5) {out <- disease_raster}
+    wdist2 <- matrix(c(0.00,0.00,1.00,0.00,0.00,
+                      0.00,1.00,1.00,1.00,0.00,
+                      1.00,1.00,1.00,1.00,1.00,
+                      0.00,1.00,1.00,1.00,0.00,
+                      0.00,0.00,1.00,0.00,0.00),
+                    nrow=5,ncol=5)
     
-    if (timestep >= 5) {
+    #Now model neighbourhood spread in DTFD1
+    if (timestep < 9) {out <- disease_raster}
+    
+    if (timestep >= 9) {
       # Get a vector of cell values for working with
       working <- disease_raster
       working[is.na(working)] <- -1
@@ -585,7 +592,7 @@ cellular_automata_dispersal <- function (max_cells = Inf,
       
       occ2 <- ifelse(x2==1,1,0)
       dim(occ2) <- c(n2,m2)
-      nb2 <- neighbours(occ2, wdist=wdist)
+      nb2 <- neighbours(occ2, wdist=wdist2)
       xgen2 <- ifelse(x2==0 & nb2 >= runif(n2*m2),1, 0)
       xgen2 <- ifelse(x2==0 & nb2 >= runif(n2*m2) & PInfm2 >= runif(n2*m2), 1, 0)
       x2 <- xgen2 + occ2
@@ -601,7 +608,7 @@ cellular_automata_dispersal <- function (max_cells = Inf,
       cells_to <- c(cells_to, out2)
     }
     
-    if (timestep >= 5) {disease_matrix[cells_to] <- 1} ########SWITCH BETWEEN 0 AND 1
+    if (timestep >= 9) {disease_matrix[cells_to] <- 1} ########SWITCH BETWEEN 0 AND 1
     #disease_matrix[which(arrival_matrix< timestep)] <- 0 ########SWITCH BETWEEN 0 AND 1
     raster::values(disease_raster) <- disease_matrix
     
@@ -613,12 +620,13 @@ cellular_automata_dispersal <- function (max_cells = Inf,
     combined[combined > 1] <- 1
     combined[arrival_raster==100] <- 0
     
+    
     #if (timestep >35) {combined[!is.na(combined)] <- 0}
     #if (timestep >35) {out3[!is.na(out3)] <- 0}
     
     landscape$DFTD1 <- combined
     if (timestep < 30) {landscape$DFTD2 <- disease_raster2} else {landscape$DFTD2 <- out3}
-    
+    landscape$DFTD2[arrival_raster==100] <- 0
     
     #######################################################
     #Update allele frequencies at each time step
