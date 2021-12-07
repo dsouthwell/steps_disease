@@ -711,7 +711,7 @@ cellular_automata_dispersal <- function (max_cells = Inf,
       allele_raster[[10]][sum(population_raster)==0] <- NA
       allele_raster[[11]][sum(population_raster)==0] <- NA
       
-      #landscape$allele_a <- allele_raster[[1]] #allele_raster
+      landscape$allele_a <- allele_raster[[1]] #allele_raster
       landscape$allele_n <- allele_raster[[2]]
       landscape$allele_n2 <- allele_raster[[3]]
       landscape$allele_n3 <- allele_raster[[4]]

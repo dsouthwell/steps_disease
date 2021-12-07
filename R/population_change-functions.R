@@ -344,7 +344,7 @@ growth <- function (transition_matrix,
     #population_raster[cell_idx] <- population
     #print(class(population(raster)))
     landscape$population <- population_raster
-    #landscape$allele_a <- alleleA_raster
+    landscape$allele_a <- alleleA_raster
     landscape$allele_n <- alleleN1_raster
     landscape$allele_n2 <- alleleN2_raster
     landscape$allele_n3 <- alleleN3_raster
