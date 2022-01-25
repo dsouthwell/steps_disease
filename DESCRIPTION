@@ -1,4 +1,4 @@
-Package: steps
+Package: steps_disease
 Type: Package
 Title: Spatially- and Temporally-Explicit Population Simulator
 Version: 1.2.1
@@ -16,7 +16,7 @@ Authors@R: c(
 Maintainer: Casey Visintin <casey.visintin@unimelb.edu.au>
 Description: Software to simulate population change across space and time.
 BugReports: https://github.com/steps-dev/steps/issues
-URL: https://github.com/steps-dev/steps
+URL: https://github.com/dsouthwell/steps_disease
 Depends:
     R (>= 3.4.0)
 License: GPL (>= 2)
