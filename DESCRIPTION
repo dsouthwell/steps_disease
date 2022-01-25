@@ -1,4 +1,4 @@
-Package: steps_disease
+Package: stepsDisease
 Type: Package
 Title: Spatially- and Temporally-Explicit Population Simulator
 Version: 1.2.1
